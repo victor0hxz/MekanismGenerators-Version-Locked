@@ -152,9 +152,9 @@ public class TurbineMultiblockData extends MultiblockData {
                 double proportion = stored / (double) getSteamCapacity();
                 double origRate = getMaxFlowRateDouble();
                 double rate = Math.min(Math.min(stored, origRate), (energyNeeded / energyMultiplier) * steamDivisor) * proportion;
-                int amountGenerated = MathUtils.clampToInt(energyMultiplier * (rate / steamDivisor));
-                if (rate > Mth.EPSILON && amountGenerated > 0) {
-                    int candidateFlow = MathUtils.clampToInt(rate);
+                int candidateFlow = MathUtils.clampToInt(rate);
+                int amountGenerated = MathUtils.clampToInt(energyMultiplier * ((double) candidateFlow / steamDivisor));
+                if (candidateFlow > 0 && amountGenerated > 0) {
                     try (Transaction transaction = Transaction.openRoot()) {
                         //TODO - 26.1: Re-evaluate these checks and the above math
                         if (energyContainer.insert(amountGenerated, transaction, AutomationType.INTERNAL) == amountGenerated &&
@@ -206,12 +206,14 @@ public class TurbineMultiblockData extends MultiblockData {
 
     private double getMaxFlowRateDouble() {
         double rate = lowerVolume * (getDispersers() * MekanismGeneratorsConfig.generators.turbineDisperserChemicalFlow.get());
-        return Math.min(rate, vents * MekanismGeneratorsConfig.generators.turbineVentChemicalFlow.get());
+        return Math.min(Integer.MAX_VALUE, Math.min(rate, vents * MekanismGeneratorsConfig.generators.turbineVentChemicalFlow.get())
+              * mekanism.generators.common.config.VersionLockedGeneratorsBalance.multiplier());
     }
 
     private double getEnergyMultiplier() {
         return ((double) MekanismGeneratorsConfig.generators.turbineJoulesPerSteam.get() / TurbineValidator.MAX_BLADES)
-               * Math.min(blades, coils * MekanismGeneratorsConfig.generators.turbineBladesPerCoil.get());
+               * Math.min(blades, coils * MekanismGeneratorsConfig.generators.turbineBladesPerCoil.get())
+               * mekanism.generators.common.config.VersionLockedGeneratorsBalance.generationMultiplier();
     }
 
     @Override
@@ -247,7 +249,8 @@ public class TurbineMultiblockData extends MultiblockData {
     }
 
     public long getSteamCapacity() {
-        return lowerVolume * MekanismGeneratorsConfig.generators.turbineChemicalPerTank.get();
+        return MathUtils.multiplyClamped(MathUtils.multiplyClamped((long) lowerVolume, MekanismGeneratorsConfig.generators.turbineChemicalPerTank.get()),
+              mekanism.generators.common.config.VersionLockedGeneratorsBalance.multiplier());
     }
 
     private long getEnergyCapacity() {

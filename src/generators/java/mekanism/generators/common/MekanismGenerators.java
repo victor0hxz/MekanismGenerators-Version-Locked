@@ -49,6 +49,7 @@ public class MekanismGenerators implements IModModule {
         //Set our version number to match the neoforge.mods.toml file, which matches the one in our build.gradle
         versionNumber = new Version(modContainer);
         MekanismGeneratorsConfig.registerConfigs(modContainer);
+        mekanism.generators.common.config.VersionLockedGeneratorsBalance.register(modContainer);
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(MekanismGeneratorsConfig::onConfigLoad);
         modEventBus.addListener(this::imcQueue);
