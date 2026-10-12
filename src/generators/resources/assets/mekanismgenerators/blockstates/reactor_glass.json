@@ -1,7 +1,8 @@
 {
   "variants": {
     "": {
-      "model": "mekanismgenerators:block/reactor_glass"
+      "type": "mekanism:special/connected_glass",
+      "model_prefix": "mekanismgenerators:block/connected_glass"
     }
   }
 }

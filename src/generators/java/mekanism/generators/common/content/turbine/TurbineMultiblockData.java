@@ -154,15 +154,16 @@ public class TurbineMultiblockData extends MultiblockData {
                 double rate = Math.min(Math.min(stored, origRate), (energyNeeded / energyMultiplier) * steamDivisor) * proportion;
                 int amountGenerated = MathUtils.clampToInt(energyMultiplier * (rate / steamDivisor));
                 if (rate > Mth.EPSILON && amountGenerated > 0) {
-                    flow = MathUtils.clampToInt(rate);
-                    flowRate = rate / origRate;
+                    int candidateFlow = MathUtils.clampToInt(rate);
                     try (Transaction transaction = Transaction.openRoot()) {
                         //TODO - 26.1: Re-evaluate these checks and the above math
                         if (energyContainer.insert(amountGenerated, transaction, AutomationType.INTERNAL) == amountGenerated &&
-                            chemicalTank.extract(chemicalTank.resource(), flow, transaction, AutomationType.INTERNAL) == flow) {
-                            int waterProduced = Math.min(flow, condensers * MekanismGeneratorsConfig.generators.condenserRate.get());
+                            chemicalTank.extract(chemicalTank.resource(), candidateFlow, transaction, AutomationType.INTERNAL) == candidateFlow) {
+                            int waterProduced = Math.min(candidateFlow, condensers * MekanismGeneratorsConfig.generators.condenserRate.get());
                             if (ventTank.insert(FluidResource.of(Fluids.WATER), waterProduced, transaction, AutomationType.INTERNAL) == waterProduced) {
                                 transaction.commit();
+                                flow = candidateFlow;
+                                flowRate = rate / origRate;
                             }
                         }
                     }
@@ -250,14 +251,14 @@ public class TurbineMultiblockData extends MultiblockData {
     }
 
     private long getEnergyCapacity() {
-        return energyCapacity;
+        return Math.max(energyCapacity, MathUtils.multiplyClamped((long) getMaxProduction(), 4));
     }
 
     @Override
     public void setVolume(int volume) {
         if (getVolume() != volume) {
             super.setVolume(volume);
-            energyCapacity = volume * MekanismGeneratorsConfig.generators.turbineEnergyCapacityPerVolume.get();
+            energyCapacity = MathUtils.multiplyClamped((long) volume, MekanismGeneratorsConfig.generators.turbineEnergyCapacityPerVolume.get());
         }
     }
 
@@ -273,7 +274,7 @@ public class TurbineMultiblockData extends MultiblockData {
 
     @ComputerMethod
     public int getMaxProduction() {
-        return MathUtils.clampToInt(getEnergyMultiplier() * getMaxFlowRateDouble());
+        return MathUtils.clampToInt(getEnergyMultiplier() * getMaxFlowRateDouble() / MekanismGeneratorsConfig.generators.turbineSteamDivisor.getAsInt());
     }
 
     @ComputerMethod
