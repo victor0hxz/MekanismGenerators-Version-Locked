@@ -2,7 +2,6 @@ package mekanism.generators.common.tile.fusion;
 
 import com.mojang.serialization.Codec;
 import io.netty.buffer.ByteBuf;
-import java.util.EnumSet;
 import java.util.Locale;
 import java.util.function.IntFunction;
 import mekanism.api.SerializationConstants;
@@ -40,7 +39,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.redstone.Redstone;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.event.EventHooks;
 
 public class TileEntityFusionReactorLogicAdapter extends TileEntityFusionReactorBlock implements IReactorLogic<FusionReactorLogic>, IHasMode {
 
@@ -57,16 +55,12 @@ public class TileEntityFusionReactorLogicAdapter extends TileEntityFusionReactor
         boolean needsPacket = super.onUpdateServer(level, multiblock);
         boolean outputting = checkMode();
         if (outputting != prevOutputting) {
+            // Publish the new state before notifying redstone consumers. onNeighborChange is
+            // a block-entity/comparator notification, not a redstone neighbor update.
+            prevOutputting = outputting;
             BlockState state = getBlockState();
-            Direction side = multiblock.getOutsideSide(worldPosition);
-            if (side == null) {
-                //Not formed, just update all sides
-                level.updateNeighbourForOutputSignal(getBlockPos(), state.getBlock());
-            } else if (!EventHooks.onNeighborNotify(level, worldPosition, state, EnumSet.of(side), false).isCanceled()) {
-                BlockPos toUpdate = worldPosition.relative(side);
-                level.getBlockState(toUpdate).onNeighborChange(level, toUpdate, worldPosition);
-                //TODO - 26.1: check weak power updates, updateNeighbourForOutputSignal does some cascading extra stuff
-            }
+            level.updateNeighborsAt(worldPosition, state.getBlock());
+            level.updateNeighbourForOutputSignal(worldPosition, state.getBlock());
             prevOutputting = outputting;
         }
         return needsPacket;
