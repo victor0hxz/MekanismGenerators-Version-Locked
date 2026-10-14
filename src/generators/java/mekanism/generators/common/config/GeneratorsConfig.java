@@ -51,6 +51,7 @@ public class GeneratorsConfig extends BaseMekanismConfig {
     public final CachedIntValue energyPerFissionFuel;
     public final CachedDoubleValue fissionCasingHeatCapacity;
     public final CachedDoubleValue fissionSurfaceAreaTarget;
+    public final CachedBooleanValue fissionSafeFailures;
     public final CachedBooleanValue fissionMeltdownsEnabled;
     public final CachedFloatValue fissionMeltdownRadius;
     public final CachedDoubleValue fissionMeltdownChance;
@@ -176,6 +177,9 @@ public class GeneratorsConfig extends BaseMekanismConfig {
               .defineInRange("excessWaste", 0.9D, 0.001D, 1D));
 
         GeneratorsConfigTranslations.SERVER_FISSION_MELTDOWNS.applyToBuilder(builder).push("meltdowns");
+        fissionSafeFailures = CachedBooleanValue.wrap(this, builder
+              .comment("Use one non-destructive failure explosion with entity damage and no meltdown radiation. The reactor shuts down at 100% damage and must fully repair at a safe temperature before restarting. Set false for legacy destructive meltdowns.")
+              .define("safeFailures", true));
         fissionMeltdownsEnabled = CachedBooleanValue.wrap(this, GeneratorsConfigTranslations.SERVER_FISSION_MELTDOWNS_ENABLED.applyToBuilder(builder)
               .define("enabled", true));
         fissionMeltdownRadius = CachedFloatValue.wrap(this, GeneratorsConfigTranslations.SERVER_FISSION_MELTDOWNS_RADIUS.applyToBuilder(builder)

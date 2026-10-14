@@ -311,6 +311,10 @@ public class FissionReactorMultiblockData extends MultiblockData implements IVal
     }
 
     private void handleDamage(Level world) {
+        if (MekanismGeneratorsConfig.generators.fissionSafeFailures.get()) {
+            handleSafeFailure(world);
+            return;
+        }
         double lastDamage = reactorDamage;
         double temp = heatCapacitor.getTemperature();
         if (temp > MIN_DAMAGE_TEMPERATURE) {
@@ -338,6 +342,38 @@ public class FissionReactorMultiblockData extends MultiblockData implements IVal
         } else if (reactorDamage < MAX_DAMAGE && temp < MIN_DAMAGE_TEMPERATURE) {
             //If we are at a safe temperature and damage level, allow enabling the reactor again
             setForceDisable(false);
+        }
+        if (!Mth.equal(reactorDamage, lastDamage)) {
+            markDirty();
+        }
+    }
+
+    // forceDisable is persisted by FissionReactorCache, including across rebuilding and merging.
+    // A failed reactor must cool and completely repair before another failure can be armed.
+    private void handleSafeFailure(Level world) {
+        double lastDamage = reactorDamage;
+        double temp = heatCapacitor.getTemperature();
+        if (temp > MIN_DAMAGE_TEMPERATURE) {
+            double damageRate = Math.min(temp, MAX_DAMAGE_TEMPERATURE) / (MIN_DAMAGE_TEMPERATURE * 10);
+            reactorDamage = Math.clamp(reactorDamage + damageRate, 0, MAX_DAMAGE);
+        } else {
+            double repairRate = (MIN_DAMAGE_TEMPERATURE - temp) / (MIN_DAMAGE_TEMPERATURE * 100);
+            reactorDamage = Math.clamp(reactorDamage - repairRate, 0, MAX_DAMAGE);
+        }
+        if (isForceDisabled()) {
+            setActive(false);
+            if (reactorDamage == 0 && temp < MIN_DAMAGE_TEMPERATURE) {
+                setForceDisable(false);
+            }
+        } else if (reactorDamage >= MAX_DAMAGE) {
+            // Latch before emitting the event. Never create a recurring core meltdown queue.
+            setForceDisable(true);
+            lastBurnRate = 0;
+            if (temp >= MIN_DAMAGE_TEMPERATURE && MekanismGeneratorsConfig.generators.fissionMeltdownsEnabled.get()) {
+                BlockPos center = getBounds().getCenter();
+                world.explode(null, center.getX() + 0.5, center.getY() + 0.5, center.getZ() + 0.5,
+                      MekanismGeneratorsConfig.generators.fissionMeltdownRadius.get(), false, Level.ExplosionInteraction.NONE);
+            }
         }
         if (!Mth.equal(reactorDamage, lastDamage)) {
             markDirty();
@@ -554,7 +590,8 @@ public class FissionReactorMultiblockData extends MultiblockData implements IVal
 
     public void setActive(boolean active) {
         //Don't allow setting it to active if we are forcibly disabled
-        if (this.active != active && (!active || !isForceDisabled())) {
+        if (this.active != active && (!active || (!isForceDisabled() &&
+            (!MekanismGeneratorsConfig.generators.fissionSafeFailures.get() || reactorDamage < MAX_DAMAGE)))) {
             this.active = active;
             markDirty();
         }
